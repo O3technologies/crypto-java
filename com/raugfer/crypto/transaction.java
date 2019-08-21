@@ -513,7 +513,7 @@ public class transaction {
             dict[] outputs = fields.get("outputs", new dict[]{ });
             BigInteger locktime = fields.get("locktime", BigInteger.ZERO);
             BigInteger default_sequence = locktime.compareTo(BigInteger.ZERO) > 0 ? BigInteger.ZERO : BigInteger.valueOf(0x0ffffffffL);
-            if (version.equals(BigInteger.valueOf(0x080000003L))) { // zcash overwinter
+            if (version.equals(BigInteger.valueOf(0x080000004L))) { // zcash sapling
                 int default_groupid = coins.attr("transaction.groupid", coin, testnet);
                 BigInteger groupid = fields.get("groupid", BigInteger.valueOf(default_groupid & 0x0ffffffffL));
                 BigInteger expiryheight = fields.get("expiryheight", BigInteger.ZERO);
@@ -549,8 +549,11 @@ public class transaction {
                 }
                 byte[] b7 = int32(locktime);
                 byte[] b8 = int32(expiryheight);
-                byte[] b9 = varint(BigInteger.ZERO);
-                return bytes.concat(bytes.concat(b1, b2, b3, b4, b5, b6), bytes.concat(b7, b8, b9));
+                byte[] b9 = int64(BigInteger.ZERO);
+                byte[] b10 = varint(BigInteger.ZERO);
+                byte[] b11 = varint(BigInteger.ZERO);
+                byte[] b12 = varint(BigInteger.ZERO);
+                return bytes.concat(bytes.concat(b1, b2, b3, b4, b5, b6), bytes.concat(b7, b8, b9, b10, b11, b12));
             }
             byte[] b1 = int32(version);
             byte[] b2 = varint(BigInteger.valueOf(inputs.length));
@@ -927,6 +930,74 @@ public class transaction {
             byte[] b12 = b_signature;
             return bytes.concat(b0, bytes.concat(b1, b2, b3, b4, b5, b6), bytes.concat(b7, b8, b9, b10, b11, b12));
         }
+        if (fmt.equals("cbor")) {
+            dict[] ins = fields.get("inputs");
+            List<Object> inputs = new ArrayList<>();
+            for (dict in : ins) {
+                String txnid = in.get("txnid");
+                BigInteger index = in.get("index", BigInteger.ZERO);
+                Object pair = new Object[]{ binint.h2b(txnid), index };
+                Object item = new Object[]{ BigInteger.ZERO, new cbor.Tag(BigInteger.valueOf(24), cbor.dumps(pair)) };
+                inputs.add(item);
+            }
+            dict[] outs = fields.get("outputs");
+            List<Object> outputs = new ArrayList<>();
+            for (dict out : outs) {
+                BigInteger amount = out.get("amount", BigInteger.ZERO);
+                String address = out.get("address");
+                Object struct = cbor.loads(base58.decode(address));
+                Object item = new Object[]{ struct, amount };
+                outputs.add(item);
+            }
+            Object data = new Object[]{ inputs, outputs, new HashMap<>() };
+            if (fields.has("witnesses")) {
+                dict[] wits = fields.get("witnesses");
+                Object[] witnesses = new Object[wits.length];
+                for (int i = 0; i < wits.length; i++) {
+                    dict wit = wits[i];
+                    String publickey = wit.get("publickey");
+                    String chaincode = wit.get("chaincode");
+                    byte[] signature = wit.get("signature");
+                    Object pair = new Object[]{ binint.h2b(publickey + chaincode), signature };
+                    Object item = new Object[]{ BigInteger.ZERO, new cbor.Tag(BigInteger.valueOf(24), cbor.dumps(pair)) };
+                    witnesses[i] = item;
+                }
+                data = new Object[]{ data, witnesses };
+            }
+            return cbor.dumps(data);
+        }
+        if (fmt.equals("protobuf")) {
+            pair<BigInteger, String> r1 = wallet.address_decode(fields.get("owner_address"), coin, testnet);
+            BigInteger h1 = r1.l;
+            String kind1 = r1.r;
+            byte[] prefix1 = coins.attr(kind1 + ".base58.prefix", coin, testnet);
+            pair<BigInteger, String> r2 = wallet.address_decode(fields.get("to_address"), coin, testnet);
+            BigInteger h2 = r2.l;
+            String kind2 = r2.r;
+            byte[] prefix2 = coins.attr(kind2 + ".base58.prefix", coin, testnet);
+            Map<Integer, Object> message_params = new HashMap<>();
+            message_params.put(1, bytes.concat(prefix1, binint.n2b(h1, 20)));
+            message_params.put(2, bytes.concat(prefix2, binint.n2b(h2, 20)));
+            message_params.put(3, fields.get("amount"));
+            Map<Integer, Object> message = new HashMap<>();
+            message.put(1, "type.googleapis.com/protocol.TransferContract".getBytes());
+            message.put(2, message_params);
+            Map<Integer, Object> contract = new HashMap<>();
+            contract.put(1, BigInteger.ONE);
+            contract.put(2, message);
+            Map<Integer, Object> data = new HashMap<>();
+            data.put(1, fields.get("ref_block_bytes"));
+            data.put(4, fields.get("ref_block_hash"));
+            data.put(8, fields.get("expiration"));
+            data.put(11, contract);
+            if (fields.has("signature")) {
+                Map<Integer, Object> signed_data = new HashMap<>();
+                signed_data.put(1, data);
+                signed_data.put(2, fields.get("signature"));
+                data = signed_data;
+            }
+            return protobuf.dumps(data);
+        }
         throw new IllegalStateException("Unknown format");
     }
 
@@ -1102,7 +1173,7 @@ public class transaction {
             BigInteger version = r1.l;
             txn = r1.r;
             BigInteger groupid = null;
-            if (version.equals(BigInteger.valueOf(0x080000003L))) { // zcash overwinter
+            if (version.equals(BigInteger.valueOf(0x080000004L))) { // zcash sapling
                 pair<BigInteger, byte[]> r2 = parse_int32(txn);
                 groupid = r2.l;
                 txn = r2.r;
@@ -1131,14 +1202,26 @@ public class transaction {
             BigInteger locktime = r4.l;
             txn = r4.r;
             BigInteger expiryheight = null;
-            if (version.equals(BigInteger.valueOf(0x080000003L))) { // zcash overwinter
+            if (version.equals(BigInteger.valueOf(0x080000004L))) { // zcash sapling
                 pair<BigInteger, byte[]> r5 = parse_int32(txn);
                 expiryheight = r5.l;
                 txn = r5.r;
-                pair<BigInteger, byte[]> r6 = parse_varint(txn);
-                BigInteger count = r6.l;
+                pair<BigInteger, byte[]> r6 = parse_int64(txn);
+                BigInteger valuebalance = r6.l;
                 txn = r6.r;
-                if (!count.equals(BigInteger.ZERO)) throw new IllegalArgumentException("Invalid transaction");
+                if (!valuebalance.equals(BigInteger.ZERO)) throw new IllegalArgumentException("Invalid transaction");
+                pair<BigInteger, byte[]> r7 = parse_varint(txn);
+                BigInteger vshieldedspend = r7.l;
+                txn = r7.r;
+                if (!vshieldedspend.equals(BigInteger.ZERO)) throw new IllegalArgumentException("Invalid transaction");
+                pair<BigInteger, byte[]> r8 = parse_varint(txn);
+                BigInteger vshieldedoutput = r8.l;
+                txn = r8.r;
+                if (!vshieldedoutput.equals(BigInteger.ZERO)) throw new IllegalArgumentException("Invalid transaction");
+                pair<BigInteger, byte[]> r9 = parse_varint(txn);
+                BigInteger vjoinsplit = r9.l;
+                txn = r9.r;
+                if (!vjoinsplit.equals(BigInteger.ZERO)) throw new IllegalArgumentException("Invalid transaction");
             }
             if (txn.length != 0) throw new IllegalArgumentException("Invalid transaction");
             dict fields = new dict();
@@ -1596,6 +1679,116 @@ public class transaction {
             if (signature != null) fields.put("signature", signature);
             return fields;
         }
+        if (fmt.equals("cbor")) {
+            dict fields = new dict();
+            Object[] data = (Object[]) cbor.loads(txn);
+            if (data.length == 2) {
+                Object[] witnesses = (Object[]) data[1];
+                data = (Object[]) data[0];
+                dict[] wits = new dict[witnesses.length];
+                for (int i = 0; i < witnesses.length; i++) {
+                    Object[] witness = (Object[]) witnesses[i];
+                    if (witness.length != 2) throw new IllegalArgumentException("Invalid input");
+                    BigInteger typ = (BigInteger) witness[0];
+                    cbor.Tag obj = (cbor.Tag) witness[1];
+                    if (typ.compareTo(BigInteger.ZERO) != 0) throw new IllegalArgumentException("Unknown type");
+                    if (obj.tag.compareTo(BigInteger.valueOf(24)) != 0) throw new IllegalArgumentException("Unknown tag");
+                    Object[] r = (Object[]) cbor.loads((byte[]) obj.value);
+                    if (r.length != 2) throw new IllegalArgumentException("Invalid input");
+                    byte[] b = (byte[]) r[0];
+                    byte[] signature = (byte[]) r[1];
+                    dict wit = new dict();
+                    wit.put("publickey", binint.b2h(bytes.sub(b, 0, 32)));
+                    wit.put("chaincode", binint.b2h(bytes.sub(b, 32)));
+                    wit.put("signature", signature);
+                    wits[i] = wit;
+                }
+                fields.put("witnesses", wits);
+            }
+            List<Object> inputs = (List<Object>) data[0];
+            dict[] ins = new dict[inputs.size()];
+            for (int i = 0; i < inputs.size(); i++) {
+                Object[] input = (Object[]) inputs.get(i);
+                if (input.length != 2) throw new IllegalArgumentException("Invalid input");
+                BigInteger typ = (BigInteger) input[0];
+                cbor.Tag obj = (cbor.Tag) input[1];
+                if (typ.compareTo(BigInteger.ZERO) != 0) throw new IllegalArgumentException("Unknown type");
+                if (obj.tag.compareTo(BigInteger.valueOf(24)) != 0) throw new IllegalArgumentException("Unknown tag");
+                Object[] r = (Object[]) cbor.loads((byte[]) obj.value);
+                byte[] b = (byte[]) r[0];
+                BigInteger index = (BigInteger) r[1];
+                dict in = new dict();
+                in.put("txnid", binint.b2h(b));
+                in.put("index", index);
+                ins[i] = in;
+            }
+            fields.put("inputs", ins);
+            List<Object> outputs = (List<Object>) data[1];
+            dict[] outs = new dict[outputs.size()];
+            for (int i = 0; i < outputs.size(); i++) {
+                Object[] output = (Object[]) outputs.get(i);
+                if (output.length != 2) throw new IllegalArgumentException("Invalid input");
+                Object[] struct = (Object[]) output[0];
+                BigInteger amount = (BigInteger) output[1];
+                if (struct.length != 2) throw new IllegalArgumentException("Invalid input");
+                cbor.Tag obj = (cbor.Tag) struct[0];
+                BigInteger checksum = (BigInteger) struct[1];
+                if (obj.tag.compareTo(BigInteger.valueOf(24)) != 0) throw new IllegalArgumentException("Unknown tag");
+                BigInteger expected_checksum = binint.b2n(crc32.crc32xmodem((byte[]) obj.value));
+                if (checksum.compareTo(expected_checksum) != 0) throw new IllegalArgumentException("Inconsistent checksum");
+                String address = base58.encode(cbor.dumps(struct));
+                dict out = new dict();
+                out.put("address", address);
+                out.put("amount", amount);
+                outs[i] = out;
+            }
+            fields.put("outputs", outs);
+            Map<Object, Object> attrs = (Map<Object, Object>) data[2];
+            if (attrs.size() > 0) throw new IllegalArgumentException("Unsupported attributes");
+            return fields;
+        }
+        if (fmt.equals("protobuf")) {
+            Map<Integer, Object> meta_1 = new HashMap<>();
+            Map<Integer, Object> meta_2 = new HashMap<>();
+            meta_2.put(2, meta_1);
+            Map<Integer, Object> meta_3 = new HashMap<>();
+            meta_3.put(2, meta_2);
+            Map<Integer, Object> meta = new HashMap<>();
+            meta.put(11, meta_3);
+            dict fields = new dict();
+            Map<Integer, Object> data = (Map<Integer, Object>) protobuf.loads(txn, meta);
+            if (!data.containsKey(11)) {
+                fields.put("signature", data.get(2));
+                data = (Map<Integer, Object>) protobuf.loads((byte[]) data.get(1), meta);
+            }
+            fields.put("ref_block_bytes", data.get(1));
+            fields.put("ref_block_hash", data.get(4));
+            fields.put("expiration", data.get(8));
+            Map<Integer, Object> contract = (Map<Integer, Object>) data.get(11);
+            BigInteger contract_type = (BigInteger) contract.get(1);
+            if (contract_type.compareTo(BigInteger.ONE) != 0) throw new IllegalArgumentException("Unsupported contract type");
+            Map<Integer, Object> message = (Map<Integer, Object>) contract.get(2);
+            byte[] message_type = (byte[]) message.get(1);
+            if (!bytes.equ(message_type, "type.googleapis.com/protocol.TransferContract".getBytes())) throw new IllegalArgumentException("Unsupported message type");
+            Map<Integer, Object> message_params = (Map<Integer, Object>) message.get(2);
+            String[] kinds = coins.attr("address.kinds", new String[]{ "address" }, coin, testnet);
+            byte[] owner_address = (byte[]) message_params.get(1);
+            for (String kind : kinds) {
+                byte[] prefix = coins.attr(kind + ".base58.prefix", coin, testnet);
+                if (!bytes.equ(bytes.sub(owner_address, 0, prefix.length), prefix)) continue;
+                fields.put("owner_address", wallet.address_encode(binint.b2n(bytes.sub(owner_address, prefix.length)), kind, coin, testnet));
+            }
+            if (!fields.has("owner_address")) throw new IllegalArgumentException("Unsupported owner address");
+            byte[] to_address = (byte[]) message_params.get(2);
+            for (String kind : kinds) {
+                byte[] prefix = coins.attr(kind + ".base58.prefix", coin, testnet);
+                if (!bytes.equ(bytes.sub(to_address, 0, prefix.length), prefix)) continue;
+                fields.put("to_address", wallet.address_encode(binint.b2n(bytes.sub(to_address, prefix.length)), kind, coin, testnet));
+            }
+            if (!fields.has("to_address")) throw new IllegalArgumentException("Unsupported to address");
+            fields.put("amount", message_params.get(3));
+            return fields;
+        }
         throw new IllegalStateException("Unknown format");
     }
 
@@ -1630,6 +1823,16 @@ public class transaction {
             if (fields.has("signature")) fields.del("signature");
             txn = transaction_encode(fields, coin, testnet);
             txn = bytes.sub(txn, 1);
+        }
+        if (txnfmt.equals("cbor")) {
+            dict fields = transaction_decode(txn, coin, testnet);
+            if (fields.has("witnesses")) fields.del("witnesses");
+            txn = transaction_encode(fields, coin, testnet);
+        }
+        if (txnfmt.equals("protobuf")) {
+            dict fields = transaction_decode(txn, coin, testnet);
+            if (fields.has("signature")) fields.del("signature");
+            txn = transaction_encode(fields, coin, testnet);
         }
         String fun = coins.attr("transaction.hashing", coin, testnet);
         byte[] prefix = coins.attr("transaction.hashing.prefix", new byte[]{ }, coin, testnet);
@@ -1723,7 +1926,7 @@ public class transaction {
         return bytes.concat(bytes.concat(b1, b2, b3, b4, b5, b6), bytes.concat(b7, b8, b9, b10, b11, b12));
     }
 
-    private static byte[] sighash_overwinter(dict fields, int i, byte[] inscript, BigInteger amount, int flag, String coin, boolean testnet) {
+    private static byte[] sighash_sapling(dict fields, int i, byte[] inscript, BigInteger amount, int flag, String coin, boolean testnet) {
         if (amount == null) throw new IllegalArgumentException("Amount required");
         BigInteger version = fields.get("version");
         BigInteger groupid = fields.get("groupid");
@@ -1774,16 +1977,19 @@ public class transaction {
         byte[] b4 = hashing.blake2b(t4, "ZcashSequencHash".getBytes(), 32);
         byte[] b5 = hashing.blake2b(t5, "ZcashOutputsHash".getBytes(), 32);
         byte[] b6 = new byte[32];
-        byte[] b7 = int32(locktime);
-        byte[] b8 = int32(expiryheight);
-        byte[] b9 = int32(BigInteger.valueOf(flag));
-        byte[] b10 = txnid;
-        byte[] b11 = int32(index);
-        byte[] b12 = varint(BigInteger.valueOf(inscript.length));
-        byte[] b13 = inscript;
-        byte[] b14 = int64(amount);
-        byte[] b15 = int32(sequence);
-        return bytes.concat(bytes.concat(b1, b2, b3, b4, b5, b6), bytes.concat(b7, b8, b9, b10, b11, b12), bytes.concat(b13, b14, b15));
+        byte[] b7 = new byte[32];
+        byte[] b8 = new byte[32];
+        byte[] b9 = int32(locktime);
+        byte[] b10 = int32(expiryheight);
+        byte[] b11 = int64(BigInteger.ZERO);
+        byte[] b12 = int32(BigInteger.valueOf(flag));
+        byte[] b13 = txnid;
+        byte[] b14 = int32(index);
+        byte[] b15 = varint(BigInteger.valueOf(inscript.length));
+        byte[] b16 = inscript;
+        byte[] b17 = int64(amount);
+        byte[] b18 = int32(sequence);
+        return bytes.concat(bytes.concat(b1, b2, b3, b4, b5, b6), bytes.concat(b7, b8, b9, b10, b11, b12), bytes.concat(b13, b14, b15, b16, b17, b18));
     }
 
     private static byte[] dcrsighash_default(dict fields, int i, byte[] inscript, BigInteger amount, int flag, String coin, boolean testnet) {
@@ -1812,7 +2018,7 @@ public class transaction {
             sighashfun sighashfunc;
             if (method.equals("default")) sighashfunc = transaction::sighash_default;
             else
-            if (method.equals("overwinter")) sighashfunc = transaction::sighash_overwinter;
+            if (method.equals("sapling")) sighashfunc = transaction::sighash_sapling;
             else
             if (method.equals("forkid")) {
                 sighashfunc = transaction::sighash_forkid;
@@ -2107,6 +2313,48 @@ public class transaction {
             fields.put("publickey", publickey);
             txn = transaction_encode(fields, coin, testnet);
             txn = bytes.sub(txn, 1);
+            byte[] signature = signing.signature_create(privatekey, txn, null, coin, testnet);
+            fields.put("signature", signature);
+            return transaction_encode(fields, coin, testnet);
+        }
+        if (fmt.equals("cbor")) {
+            dict fields = transaction_decode(txn, coin, testnet);
+            if (fields.has("witnesses")) fields.del("witnesses");
+            txn = transaction_encode(fields, coin, testnet);
+            dict[] inputs = fields.get("inputs");
+            if (!(params instanceof Object[])) {
+                Object[] t = new Object[inputs.length];
+                for (int i = 0; i < t.length; i++) t[i] = params;
+                params = t;
+            }
+            Object[] _params = (Object[]) params;
+            dict[] witnesses = new dict[inputs.length];
+            for (int i = 0; i < inputs.length; i++) {
+                Object param = _params[i];
+                String privatekey = null;
+                if (param instanceof String) {
+                    privatekey = (String) param;
+                }
+                if (param instanceof Object[]) {
+                    Object[] tuple = (Object[]) param;
+                    privatekey = (String) tuple[0];
+                }
+                String publickey = wallet.publickey_from_privatekey(privatekey, coin, testnet);
+                byte[] signature = signing.signature_create(privatekey, txn, null, coin, testnet);
+                dict witness = new dict();
+                witness.put("publickey", publickey);
+                witness.put("chaincode", binint.b2h(new byte[32]));
+                witness.put("signature", signature);
+                witnesses[i] = witness;
+            }
+            fields.put("witnesses", witnesses);
+            return transaction_encode(fields, coin, testnet);
+        }
+        if (fmt.equals("protobuf")) {
+            dict fields = transaction_decode(txn, coin, testnet);
+            if (fields.has("signature")) fields.del("signature");
+            String privatekey = (String) params;
+            txn = transaction_encode(fields, coin, testnet);
             byte[] signature = signing.signature_create(privatekey, txn, null, coin, testnet);
             fields.put("signature", signature);
             return transaction_encode(fields, coin, testnet);

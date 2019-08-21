@@ -63,6 +63,71 @@ public class coins {
 
     static {
         dict attrs = new dict();
+        attrs.put("overloads", "bitcoincash");
+        attrs.put("hdwallet.coin_type", 236);
+        attrs.put("confirmations", 72);
+        attrs.put("default_fee", 960);
+        coins.put("bitcoinsv", attrs);
+    }
+
+    static {
+        dict attrs = new dict();
+        attrs.put("ecc.curve", "ed25519");
+        attrs.put("address.base58.check", "crc32:5");
+        attrs.put("privatekey.format", "hex");
+        attrs.put("publickey.format", "sec2");
+        attrs.put("address.envelope.prefix", new byte[]{ (byte)0x83, (byte)0x00, (byte)0x82, (byte)0x00, (byte)0x58, (byte)0x40 });
+        attrs.put("address.envelope.suffix", (_testnetfun) (testnet -> bytes.concat(
+                new byte[32],
+                testnet
+                    ? new byte[]{ (byte)0xa1, (byte)0x02, (byte)0x45, (byte)0x1a, (byte)0x41, (byte)0x70, (byte)0xcb, (byte)0x17 }
+                    : new byte[]{ (byte)0xa0 }
+        )));
+        attrs.put("address.format", "base58");
+        attrs.put("address.hashing", "addresshash");
+        attrs.put("address.bits", 224);
+        attrs.put("address.mode", "utxo");
+        attrs.put("address.base58.prefix", (_testnetfun) (testnet -> bytes.concat(
+                new byte[]{ (byte)0x82, (byte)0xd8, (byte)0x18, (byte)0x58 },
+                testnet
+                        ? new byte[]{ (byte)0x28 }
+                        : new byte[]{ (byte)0x21 },
+                new byte[]{ (byte)0x83, (byte)0x58, (byte)0x1c }
+        )));
+        attrs.put("address.base58.suffix", (_testnetfun) (testnet -> bytes.concat(
+                testnet
+                        ? new byte[]{ (byte)0xa1, (byte)0x02, (byte)0x45, (byte)0x1a, (byte)0x41, (byte)0x70, (byte)0xcb, (byte)0x17 }
+                        : new byte[]{ (byte)0xa0 },
+                new byte[]{ (byte)0x00 }
+        )));
+        attrs.put("xprivatekey.base58.prefix", (_testnetfun) (testnet -> testnet
+                ? new byte[]{ (byte)0x04, (byte)0x35, (byte)0x83, (byte)0x94 }
+                : new byte[]{ (byte)0x04, (byte)0x88, (byte)0xad, (byte)0xe4 }
+        ));
+        attrs.put("xpublickey.base58.prefix", (_testnetfun) (testnet -> testnet
+                ? new byte[]{ (byte)0x04, (byte)0x35, (byte)0x87, (byte)0xcf }
+                : new byte[]{ (byte)0x04, (byte)0x88, (byte)0xb2, (byte)0x1e }
+        ));
+        attrs.put("hdwallet.coin_type", 1815);
+        attrs.put("transaction.format", "cbor");
+        attrs.put("transaction.hashing", "blake2b256");
+        attrs.put("signature.format", "ble");
+        attrs.put("signature.hashing", "blake2b256");
+        attrs.put("signature.hashing.envelop.prefix", (_testnetfun) (testnet -> bytes.concat(
+                new byte[]{ (byte)0x01, (byte)0x1a },
+                testnet
+                    ? new byte[]{ (byte)0x41, (byte)0x70, (byte)0xcb, (byte)0x17 }
+                    : new byte[]{ (byte)0x2d, (byte)0x96, (byte)0x4a, (byte)0x09 },
+                new byte[]{ (byte)0x58, (byte)0x20 })
+        ));
+        attrs.put("confirmations", 20);
+        attrs.put("block.time", 20);
+        attrs.put("decimals", 6);
+        coins.put("cardano", attrs);
+    }
+
+    static {
+        dict attrs = new dict();
         attrs.put("overloads", "bitcoin");
         attrs.put("privatekey.base58.prefix", (_testnetfun) (testnet -> testnet ? new byte[]{ (byte)0xef } : new byte[]{ (byte)0xcc }));
         attrs.put("address.base58.prefix", (_testnetfun) (testnet -> testnet ? new byte[]{ (byte)0x8c } : new byte[]{ (byte)0x4c }));
@@ -149,6 +214,7 @@ public class coins {
         attrs.put("publickey.format", "hex");
         attrs.put("address.format", "hexmix");
         attrs.put("address.hashing", "keccak256");
+        attrs.put("address.hashing.raw", true);
         attrs.put("address.prefix", "0x");
         attrs.put("address.mode", "account");
         attrs.put("xprivatekey.base58.prefix", (_testnetfun) (testnet -> testnet
@@ -230,6 +296,7 @@ public class coins {
         attrs.put("hdwallet.coin_type", 2);
         attrs.put("confirmations", 6);
         attrs.put("block.time", 5 * 30);
+        attrs.put("default_fee", 100000);
         coins.put("litecoin", attrs);
     }
 
@@ -436,6 +503,37 @@ public class coins {
 
     static {
         dict attrs = new dict();
+        attrs.put("ecc.curve", "secp256k1");
+        attrs.put("base58.check", "hash256:4");
+        attrs.put("privatekey.format", "hex");
+        attrs.put("publickey.format", "sec2");
+        attrs.put("address.format", "base58");
+        attrs.put("address.hashing", "keccak256");
+        attrs.put("address.hashing.raw", true);
+        attrs.put("address.mode", "account");
+        attrs.put("address.base58.prefix", new byte[]{ (byte)0x41 });
+        attrs.put("xprivatekey.base58.prefix", (_testnetfun) (testnet -> testnet
+                ? new byte[]{ (byte)0x04, (byte)0x35, (byte)0x83, (byte)0x94 }
+                : new byte[]{ (byte)0x04, (byte)0x88, (byte)0xad, (byte)0xe4 }
+        ));
+        attrs.put("xpublickey.base58.prefix", (_testnetfun) (testnet -> testnet
+                ? new byte[]{ (byte)0x04, (byte)0x35, (byte)0x87, (byte)0xcf }
+                : new byte[]{ (byte)0x04, (byte)0x88, (byte)0xb2, (byte)0x1e }
+        ));
+        attrs.put("hdwallet.coin_type", 195);
+        attrs.put("transaction.format", "protobuf");
+        attrs.put("transaction.hashing", "sha256");
+        attrs.put("signature.format", "rec");
+        attrs.put("signature.hashing", "sha256");
+        attrs.put("account.reserved", 1000000);
+        attrs.put("confirmations", 20);
+        attrs.put("block.time", 15);
+        attrs.put("decimals", 6);
+        coins.put("tron", attrs);
+    }
+
+    static {
+        dict attrs = new dict();
         attrs.put("ecc.curve", "ed25519");
         attrs.put("address.base58.check", "securehash:4");
         attrs.put("privatekey.format", "base58");
@@ -478,11 +576,11 @@ public class coins {
         attrs.put("address.base58.prefix", (_testnetfun) (testnet -> testnet ? new byte[]{ (byte)0x1d, (byte)0x25 } : new byte[]{ (byte)0x1c, (byte)0xb8 }));
         attrs.put("script.base58.prefix", (_testnetfun) (testnet -> testnet ? new byte[]{ (byte)0x1c, (byte)0xba } : new byte[]{ (byte)0x1c, (byte)0xbd }));
         attrs.put("hdwallet.coin_type", 133);
-        attrs.put("transaction.version", 0x80000003);
-        attrs.put("transaction.groupid", 0x03c48270);
+        attrs.put("transaction.version", 0x80000004);
+        attrs.put("transaction.groupid", 0x892f2085);
         attrs.put("signature.hashing", "blake2b256");
-        attrs.put("signature.hashing.prefix", bytes.concat("ZcashSigHash".getBytes(), new byte[]{ (byte)0x19, (byte)0x1b, (byte)0xa8, (byte)0x5b }));
-        attrs.put("sighash.method", "overwinter");
+        attrs.put("signature.hashing.prefix", bytes.concat("ZcashSigHash".getBytes(), new byte[]{ (byte)0xbb, (byte)0x09, (byte)0xb8, (byte)0x76 }));
+        attrs.put("sighash.method", "sapling");
         attrs.put("confirmations", 20);
         attrs.put("block.time", 5 * 30);
         attrs.put("decimals", 8);
@@ -533,6 +631,22 @@ public class coins {
         dict attrs = new dict();
         attrs.put("overloads", "ethereum");
         attrs.put("transfer.gaslimit", 150000);
+        attrs.put("contract.address", (_testnetfun) (testnet -> testnet ? "0x40b329333e1cea0235f6a44a92e29fd6d6ab5184" : "0x514910771af9ca656af840dff83e8264ecf986ca"));
+        coins.put("chainlink", attrs);
+    }
+
+    static {
+        dict attrs = new dict();
+        attrs.put("overloads", "ethereum");
+        attrs.put("transfer.gaslimit", 150000);
+        attrs.put("contract.address", (_testnetfun) (testnet -> testnet ? "0x5a89997f38429b5866809dc40a6d677c521ebab9" : "0x89d24a6b4ccb1b6faa2625fe562bdd9a23260359"));
+        coins.put("dai", attrs);
+    }
+
+    static {
+        dict attrs = new dict();
+        attrs.put("overloads", "ethereum");
+        attrs.put("transfer.gaslimit", 150000);
         attrs.put("contract.address", (_testnetfun) (testnet -> testnet ? "0xa61ad21f601358586ad00aac9f2303512cc46b79" : "0x86fa049857e0209aa7d9e616f7eb3b3b78ecfdb0"));
         coins.put("eos", attrs);
     }
@@ -543,6 +657,14 @@ public class coins {
         attrs.put("transfer.gaslimit", 150000);
         attrs.put("contract.address", (_testnetfun) (testnet -> testnet ? "0x47a4cd1239d3e89ba2767d9bbd188ab6dcca39ed" : "0xa74476443119A942dE498590Fe1f2454d7D4aC0d"));
         coins.put("golem", attrs);
+    }
+
+    static {
+        dict attrs = new dict();
+        attrs.put("overloads", "ethereum");
+        attrs.put("transfer.gaslimit", 150000);
+        attrs.put("contract.address", (_testnetfun) (testnet -> testnet ? "0x1bf884dd8541487540889c0e27459986546a56c2" : "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2"));
+        coins.put("maker", attrs);
     }
 
     static {
